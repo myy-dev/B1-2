@@ -1,152 +1,233 @@
-# React 핵심 개념 마스터: SPA 서비스 구현
+# Focus Todo
 
-React와 원격 데이터베이스(Supabase/Firebase)를 연동해 SPA(Single Page Application) 서비스를 구현하는 프로젝트입니다.
+React의 라우팅, 컴포넌트 설계, 제어 폼, 비동기 CRUD, 상태 관리 흐름을 한 프로젝트에서 확인할 수 있는 Todo List SPA입니다.
 
----
+현재 버전은 **Supabase Auth + 원격 데이터베이스 모드**입니다. 이메일/비밀번호 인증과 보호 라우트를 사용하며, `public.todos`의 `user_id` 소유권 RLS를 통해 각 사용자는 자기 할 일만 CRUD할 수 있습니다.
 
-## 기술 스택 (Tech Stack)
+## 주요 기능
 
-- **Frontend Core:** React 18+
-- **Routing:** React Router (또는 기타 라우팅 라이브러리)
-- **Database / BaaS:** Supabase / Firebase (택 1)
-- **Styling:** 순수 CSS / CSS Modules / Tailwind CSS / Styled-components / Emotion / UI 라이브러리 (MUI, Chakra 등) 중 택 1
-- **Deployment:** Vercel / Netlify (택 1)
+- 할 일 목록, 상세 조회, 등록, 수정, 삭제
+- 진행 중/완료 상태 즉시 전환
+- 제목·설명 검색과 상태 필터
+- 제어 컴포넌트 기반 폼, 필수 값/글자 수 검증, 실시간 미리보기
+- 로딩, 오류, 빈 상태, 제출 중 상태, 삭제 확인 모달
+- 저장/수정/삭제 결과 토스트
+- 반응형 데스크톱·모바일 내비게이션과 404 페이지
+- Context API 기반 전역 테마·토스트 상태
+- 라이트/다크 테마와 브라우저 저장
+- Supabase Data API 기반 원격 비동기 CRUD
+- 이메일/비밀번호 회원가입·로그인·로그아웃과 세션 유지
+- 보호 라우트와 `auth.uid() = user_id` 기반 사용자별 RLS
 
----
+## 기술 스택
 
-## 시작 가이드 (Getting Started)
+- React 18
+- React Router 7
+- Vite 8
+- Supabase JavaScript SDK 2
+- 순수 CSS 디자인 시스템
+- Lucide React
+- Vitest 4, Testing Library
+- Vercel SPA rewrite 설정
 
-### 1. 패키지 설치
+## 시작하기
+
+요구 환경은 Node.js 22 이상입니다.
 
 ```bash
 npm install
-```
-
-### 2. 환경 변수 설정
-
-프로젝트 루트 디렉토리에 `.env` 파일을 생성하고 API Key 및 필수 설정을 입력합니다.
-
-> **주의:** `.env` 파일에는 민감 정보가 포함되므로 절대 GitHub에 푸시하지 마세요. (`.gitignore` 등록 필수)
-
-```env
-# 예시 (사용 중인 BaaS 설정에 맞게 입력)
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-# 또는 Firebase 설정
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-```
-
-### 3. 로컬 실행
-
-```bash
+cp .env.example .env.local
 npm run dev
 ```
 
-### 4. 프로덕션 빌드
+`.env.local`에 Supabase Project URL과 publishable key를 입력한 뒤 Vite가 출력한 로컬 주소로 접속합니다. 기존 프로젝트는 legacy anon 키도 사용할 수 있지만 `service_role`/secret 키는 브라우저 환경 변수에 절대 넣으면 안 됩니다.
+
+### 명령어
 
 ```bash
-npm run build
+npm run dev          # 개발 서버
+npm test             # 테스트 1회 실행
+npm run test:watch   # 테스트 watch 모드
+npm run build        # 프로덕션 빌드
+npm run preview      # 빌드 결과 미리보기
+npm run check        # 테스트 후 빌드
 ```
 
-### 5. 배포 환경 설정
+## 라우트
 
-- Vercel/Netlify 등 대시보드의 **Environment Variables** 설정에 `.env` 파일의 변수들을 동일하게 등록해야 배포 환경에서 정상 작동합니다.
-
----
+| 경로 | 화면 | 역할 |
+| --- | --- | --- |
+| `/login` | 로그인·회원가입 | Supabase Auth 이메일/비밀번호 인증 |
+| `/` | 홈 | 소개, CRUD 현황 요약 |
+| `/todos` | 할 일 목록 | 목록 조회, 검색, 상태 필터, 완료 전환, 삭제 |
+| `/todos/new` | 새 할 일 | 등록 폼, 검증, 실시간 미리보기 |
+| `/todos/:id` | 할 일 상세 | 라우트 파라미터 기반 단일 조회, 수정/삭제 진입 |
+| `/todos/:id/edit` | 할 일 수정 | 기존 값 로드, 수정 및 상세 화면 리다이렉트 |
+| `/profile` | 프로필 | 사용자 기준 완료/전체 통계 |
+| `/settings` | 설정 | 전역 테마, 현재 사용자의 Todo 초기화 |
+| `*` | Not Found | 잘못된 경로 안내 |
 
 ## 프로젝트 구조
 
 ```text
 .
-├── public/                 # 정적 자원 (이미지, 아이콘 등)
 ├── src/
-│   ├── assets/             # 스타일 및 미디어 자원
-│   ├── components/         # 재사용 UI 컴포넌트 (공통 Button, Input, Card 등)
-│   ├── hooks/              # 커스텀 훅 (비동기 데이터 fetch, 상태 로직 분리 등)
-│   ├── lib/                # 외부 라이브러리 설정 (Supabase/Firebase 초기화 등)
-│   └── pages/              # 라우트 단위 화면 컴포넌트 (목록, 상세, 폼 등)
-├── .env                    # API Key 및 환경 변수 (Git 제외 대상)
-├── .gitignore              # 버전 관리 제외 설정
-├── package.json            # 의존성 및 스크립트 관리 정의
-└── README.md               # 프로젝트 가이드 및 설명서
+│   ├── components/
+│   │   ├── ui/              # Button, Card, Field, Alert 등 재사용 UI
+│   │   ├── Layout.jsx       # 공통 헤더·내비게이션·앱 셸
+│   │   ├── TodoForm.jsx     # 등록/수정 공용 폼
+│   │   ├── TodoList.jsx     # 메모이제이션된 카드 목록
+│   │   └── TodoSearch.jsx   # 검색·상태 필터
+│   ├── context/             # Auth, Theme, Toast 전역 상태
+│   ├── hooks/               # 목록, 상세, 폼 상태와 비동기 흐름
+│   ├── lib/                 # Supabase 클라이언트, CRUD API와 포맷터
+│   ├── pages/               # 라우트 단위 화면
+│   ├── test/                # Vitest 공통 설정
+│   ├── App.jsx              # 라우트 정의
+│   └── main.jsx             # React 진입점
+├── .env.example
+├── supabase/migrations/     # 테이블, GRANT, 사용자별 RLS 재현 SQL
+├── vercel.json              # SPA fallback rewrite
+├── vite.config.js
+└── package.json
 ```
 
----
+## 데이터 흐름
 
-## 수행 항목 체크리스트
+```text
+사용자 이벤트
+  → 페이지/재사용 컴포넌트
+  → useTodos / useTodo / useTodoForm
+  → todosApi → Supabase Auth 세션 → Data API → public.todos
+  → RLS에서 auth.uid()와 user_id 소유권 확인
+  → loading/error/data 상태 변경
+  → 목록·상세·폼·토스트 UI 리렌더링
+```
+
+`src/lib/todosApi.js`는 아래 메서드를 제공합니다.
+
+- `listTodos()`
+- `getTodo(id)`
+- `createTodo(values)`
+- `updateTodo(id, values)`
+- `deleteTodo(id)`
+- `clearTodos(userId)` — 현재 로그인 사용자의 행만 초기화
+
+`todosApi`가 Supabase의 snake_case 컬럼을 화면의 camelCase 데이터로 변환하므로 UI와 폼 로직은 데이터베이스 SDK에 직접 의존하지 않습니다.
+
+## 체크리스트 충족 현황
 
 ### 프로젝트 기본 구성
 
-- [ ] React 18 이상 버전 초기 세팅 완료
-- [ ] 역할별 폴더 구조 분리 (`pages`, `components`, `hooks`, `lib`)
-- [ ] 주요 페이지에 공통 레이아웃(헤더/네비게이션 등) 적용
-- [ ] 단일 핵심 데이터 CRUD 모델 및 서비스 주제 선정
+- [x] React 18 이상 Vite 프로젝트
+- [x] `pages`, `components`, `hooks`, `lib` 역할별 구조
+- [x] 공통 헤더·내비게이션 레이아웃
+- [x] 단일 Todo CRUD 모델과 서비스 주제
 
-### 라우팅 (Routing)
+### 라우팅
 
-- [ ] 최소 5개 이상의 주요 페이지 라우트 구현 (예: `/`, `/items`, `/items/:id`, `/items/new`, `/profile` 등)
-- [ ] 목록 및 상세 화면 라우트 구분 설계 (`/items`, `/items/:id`)
-- [ ] 잘못된 경로 접근 시 노출될 `Not Found` 페이지 구현
-- [ ] 네비게이션 바를 통한 원활한 라우트 간 이동 경로 제공
+- [x] 5개 이상 주요 페이지 라우트(실제 8개 + 404)
+- [x] `/todos` 목록과 `/todos/:id` 상세 분리
+- [x] Not Found 페이지
+- [x] 데스크톱·모바일 내비게이션
+- [x] `/login` 공개 라우트와 나머지 보호 라우트
 
 ### 컴포넌트 설계
 
-- [ ] 최소 8개 이상의 재사용 UI 컴포넌트 구현 (예: `Button`, `Input`, `Card` 등)
-- [ ] 재사용 컴포넌트가 최소 1개 이상의 `prop`을 받아 동적으로 렌더링되도록 설계
-- [ ] 페이지 컴포넌트와 UI 컴포넌트의 명확한 역할 분리
-- [ ] 공통 UI 패턴(로딩, 에러, 빈 상태)을 재사용 컴포넌트로 일관되게 처리
+- [x] 8개 이상 재사용 UI(Button, Card, Badge, Alert, Field, Input, Textarea, Select, LoadingState, EmptyState, ConfirmDialog, PageHeader)
+- [x] props 기반 동적 렌더링
+- [x] 페이지와 UI 컴포넌트 역할 분리
+- [x] 로딩·오류·빈 상태 공통 컴포넌트
 
 ### 상태 관리
 
-- [ ] 제어 컴포넌트(Controlled Input) 기반의 폼 입력 상태 관리
-- [ ] 목록 및 상세 조회를 위한 데이터 상태 관리
-- [ ] 비동기 처리를 위한 로딩 및 에러 상태 관리
-- [ ] 데이터 조회/갱신 흐름 중 최소 1개 이상을 커스텀 훅(`useItems` 등)으로 분리
+- [x] 제어 입력 기반 폼
+- [x] 목록·상세 데이터 상태
+- [x] 비동기 loading/error/submitting 상태
+- [x] `useTodos`, `useTodo`, `useTodoForm` 커스텀 훅
 
-### 원격 CRUD 연동
+### CRUD
 
-- [ ] Supabase 또는 Firebase 원격 데이터베이스 연동 환경 세팅
-- [ ] **목록 조회:** 리스트 형태의 데이터 렌더링
-- [ ] **상세 조회:** 라우트 파라미터(`:id`) 기반 단일 데이터 로드 및 렌더링
-- [ ] **등록 및 수정:** 폼 제출 성공 시 목록/상세 페이지 리다이렉트 및 데이터 갱신
-- [ ] **삭제:** 데이터 삭제 후 목록 갱신 및 리다이렉트 처리
+- [x] 목록 조회
+- [x] `:id` 기반 상세 조회
+- [x] 등록 후 상세 리다이렉트
+- [x] 수정 후 상세 리다이렉트 및 갱신
+- [x] 삭제 후 목록 갱신 또는 목록 리다이렉트
+- [x] Supabase 원격 연결과 authenticated 역할의 명시적 Data API 권한
+- [x] `user_id = auth.uid()` 소유권 기반 SELECT/INSERT/UPDATE/DELETE RLS
 
-### 폼 UX 개선
+### 폼 UX와 렌더링
 
-- [ ] 등록 및 수정 폼 내 필수 값 유효성 검증 (빈 값 제출 불가 처리)
-- [ ] 입력 필드 근처 또는 화면 상단에 에러 메시지 표시
-- [ ] 제출 중 상태 반영 (제출 중 버튼 비활성화 또는 스피너 표시)
-- [ ] 네트워크 에러 등 실패 상황 발생 시 안내 UI 제공
+- [x] 빈 제목·최대 글자 수 유효성 검증
+- [x] 필드 주변과 폼 상단 오류 메시지
+- [x] 제출 중 버튼 비활성화·스피너
+- [x] 조회/저장 실패 안내 UI
+- [x] 검색 변경 → 필터 목록 리렌더링
+- [x] 폼 입력 → 실시간 미리보기 리렌더링
+- [x] 상태 전환/저장/삭제 → 카드·통계·토스트 리렌더링
 
-### 이벤트 & 렌더링 검증
+### 보너스
 
-- [ ] 사용자 이벤트 -> 상태 변경 -> UI 리렌더링 흐름 구축
-- [ ] 상태 변경이 리렌더링으로 이어지는 지점 최소 3군데 이상 명확히 구현
-  - _예시: 필터/검색 변경에 따른 목록 갱신, 실시간 입력 미리보기 반영, 저장 성공 알림 등_
+- [x] Context API 전역 테마와 토스트
+- [x] `useMemo`, `useCallback`, `React.memo` 적용
+- [x] Supabase Auth 회원가입·로그인·로그아웃과 보호 라우트
+- [x] 사용자별 데이터 격리와 비로그인 Data API 차단
 
-### 배포 및 환경 검증
+### 배포 준비
 
-- [ ] Vercel 또는 Netlify 등을 통한 외부 배포 완료
-- [ ] 배포 URL에서 CRUD 기능 전체 정상 동작 확인
-- [ ] 배포 플랫폼 대시보드 내 환경 변수(Environment Variables) 등록 및 검증
-- [ ] GitHub 레포지토리 제출 준비 및 README에 빌드/실행 명령어 정리
+- [x] `npm run build` 스크립트와 Vercel SPA rewrite 설정
+- [x] 환경 변수 예시와 `.gitignore` 보안 설정
+- [x] GitHub 제출용 실행·테스트·빌드 문서
+- [ ] Vercel 실제 배포 URL과 대시보드 환경 변수 — 외부 계정 작업 필요
+- [ ] 배포 URL에서 CRUD 최종 확인 — 실제 배포 후 진행
 
-### 보너스 과제
+## 테스트 범위
 
-- [ ] **전역 상태:** 로그인 사용자(Auth), 테마, 토스트 알림 중 1개 이상을 Context API 등으로 관리
-- [ ] **성능 최적화:** 불필요한 렌더링 방지를 위해 `useMemo`, `useCallback`, `React.memo` 중 1개 이상 적용
-- [ ] **인증 및 보호 라우트:** Supabase/Firebase Auth 로그인 흐름 및 비로그인 접근 차단 보호 라우트 구현
+- Supabase API 계층의 목록 정렬, 데이터 변환, 사용자 범위 초기화 및 전체 CRUD
+- 존재하지 않는 데이터 수정/삭제 오류
+- 폼 필수 값 검증, trim, 저장 실패 상태
+- Auth 세션 로드·구독 해제와 로그인/회원가입 화면
+- 입력에 따른 실시간 미리보기
+- 목록 검색·상태 필터·완료 상태 변경·조회 실패 단일 상태 UI
+- 오래된 요청이 최신 상태를 덮지 못하도록 하는 요청 순서 보호
+- 확인 모달의 처리 중 닫기 방지·포커스 복원
+- 보호 라우트, 주요 라우트와 404 렌더링
 
----
+```bash
+npm run check
+```
 
-## 제약 사항
+## Supabase 설정
 
-- **프레임워크:** 표준 React 18+ 기반 구현 (타 SPA 프레임워크 배제)
-- **데이터베이스:** 원격 관리를 위해 Supabase 또는 Firebase 필수 연동
-- **폴더 아키텍처:** `pages`, `components`, `hooks`(또는 `lib`) 디렉토리 규칙 준수
-- **환경 변수 보안:** API Key 등 민감 정보는 `.env`로 관리하고, `.gitignore`에 등록하여 노출 방지
-- **아키텍처 중심 개발:** 화려한 UI보다 React 컴포넌트 구조와 비동기 데이터 흐름(로딩/에러/빈 상태) 완성이 최우선
-- **단일 책임 컴포넌트:** 재사용 UI 컴포넌트 설계 시 최소 1개 이상의 props 수신 구조 반영
-- **상태 위치 최적화:** Props(하향) 및 이벤트 콜백(상향) 흐름을 고려한 상태의 위치(부모/로컬) 최적 설계
-- **비동기 예외 처리:** API 호출 실패 또는 로딩 상황 발생 시 사용자 친화적인 UI/UX 제공
-- **커스텀 훅 분리:** 비동기 비즈니스 로직은 최소 1개 이상의 커스텀 훅으로 캡슐화하여 관리
+`.env.example`을 복사해 값을 설정합니다.
+
+```bash
+cp .env.example .env.local
+```
+
+```env
+VITE_SUPABASE_URL=your_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+```
+
+기존 프로젝트에서 legacy key를 사용한다면 `VITE_SUPABASE_ANON_KEY`도 지원합니다. 키가 담긴 `.env.local`은 `.gitignore`에 포함되어 있습니다.
+
+### 데이터베이스 migration
+
+`supabase/migrations`의 SQL을 파일명 순서로 적용합니다.
+
+1. `20260815153506_create_public_todos_demo.sql`: Todo 테이블과 기본 제약조건 생성
+2. `20260818071346_secure_todos_with_auth_ownership.sql`: `user_id` 외래키, 인덱스, authenticated 전용 GRANT, 사용자 소유권 RLS 적용
+
+최종 정책은 비로그인 `anon` 역할의 테이블 권한을 제거하고 로그인 사용자에게만 CRUD를 허용합니다. 모든 정책은 `(select auth.uid()) = user_id`를 검사하며 UPDATE에는 `USING`과 `WITH CHECK`가 모두 적용됩니다.
+
+Supabase Dashboard의 **Authentication → URL Configuration**에서 로컬 개발 URL과 실제 배포 URL을 Redirect URLs에 등록해야 합니다. 이메일 확인이 활성화된 프로젝트에서는 회원가입 후 받은 확인 메일을 열어야 로그인할 수 있습니다.
+
+## Vercel 배포
+
+1. 저장소를 Vercel에 연결합니다.
+2. Framework Preset은 Vite를 선택합니다.
+3. Build Command는 `npm run build`, Output Directory는 `dist`를 사용합니다.
+4. `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 Vercel 환경 변수에 등록합니다.
+5. Supabase Auth의 Site URL 및 Redirect URLs에 Vercel 주소를 등록합니다.
+6. 배포 후 회원가입·로그인·로그아웃, 보호 라우트, 목록·상세·등록·수정·삭제와 새로고침 시 SPA fallback을 확인합니다.
